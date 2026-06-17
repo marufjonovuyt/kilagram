@@ -1,4 +1,9 @@
 import os
+from passlib.context import CryptContext
+
+# Mana shu qator yetishmayapti:
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from sqlalchemy import create_engine
 import logging
 import uuid
 from datetime import datetime
@@ -10,7 +15,9 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, DateTime, Text, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from passlib.context import CryptContext
+
+from fastapi import FastAPI, HTTPException
+# ... boshqa importlar
 
 # 1. Baza sozlamalari
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./chat.db")
