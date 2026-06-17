@@ -17,6 +17,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./chat.db")
 
 # 2. Baza Engine va Base ni aniqlash (XATOLIK SHU YERDA EDI)
 if DATABASE_URL.startswith("postgres"):
+    DATABASE_URL = os.environ.get("DATABASE_URL")
     engine = create_engine(DATABASE_URL)
 else:
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
