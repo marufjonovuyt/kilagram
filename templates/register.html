@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ro'yxatdan o'tish</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-white flex items-center justify-center min-h-screen p-4">
+    <div class="bg-gray-900 p-8 rounded-3xl shadow-2xl w-full max-w-sm border border-gray-800">
+        <h2 class="text-2xl font-black mb-6 text-center bg-gradient-to-r from-indigo-400 to-purple-500 bg-clip-text text-transparent">Akkaunt yaratish</h2>
+        <form id="regForm" class="space-y-4">
+            <input type="text" name="username" placeholder="Username..." required class="w-full p-3.5 bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 border border-gray-700">
+            <!-- Input qismini shunday o'zgartiring -->
+<input type="text" name="phone" placeholder="Telefon raqam (+998951234567)" required class="w-full p-3 rounded-xl border dark:bg-gray-800">
+            <input type="password" name="password" placeholder="Parol..." required class="w-full p-3.5 bg-gray-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 border border-gray-700">
+            <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 p-3.5 rounded-xl font-bold transition">Ro'yxatdan o'tish</button>
+        </form>
+        <p class="text-center text-sm text-gray-400 mt-4">Akkauntingiz bormi? <a href="/" class="text-indigo-400 hover:underline">Login</a></p>
+    </div>
+    <script>
+        document.getElementById('regForm').onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const res = await fetch('/api/register', { method: 'POST', body: formData });
+            const data = await res.json();
+            if(res.ok) { alert(data.message); window.location.href = '/'; }
+            else { alert(data.detail); }
+        };
+    </script>
+</body>
+</html>

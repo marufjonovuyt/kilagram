@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="uz" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kilagram chat</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        if (localStorage.getItem('dark-mode') === 'false') document.documentElement.classList.remove('dark');
+        tailwind.config = { darkMode: 'class' }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .msg-box:hover .react-popover { display: flex; }
+    </style>
+</head>
+<body class="bg-slate-100 dark:bg-gray-950 text-gray-900 dark:text-gray-100 h-screen w-screen flex m-0 p-0 overflow-hidden transition-all relative">
+
+    <div id="auth-screen" class="fixed inset-0 z-50 bg-slate-100 dark:bg-gray-950 flex items-center justify-center p-4">
+        <div class="w-full max-w-sm p-6 bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-2xl">
+            <div class="text-center mb-6"><h2 id="auth-title" class="text-xl font-black">Tizimga kirish</h2></div>
+            <div class="space-y-4">
+                <div>
+                    <label id="user-label" class="block text-[11px] font-bold text-gray-400 uppercase mb-1">Username yoki Telefon</label>
+                    <input id="auth-user" type="text" class="w-full p-3 bg-gray-100 dark:bg-gray-950 rounded-xl text-xs outline-none text-black dark:text-white border dark:border-gray-800">
+                </div>
+                <div id="phone-box" class="hidden">
+                    <label class="block text-[11px] font-bold text-gray-400 uppercase mb-1">Telefon raqami</label>
+                    <input id="auth-phone" type="text" placeholder="+998901234567" class="w-full p-3 bg-gray-100 dark:bg-gray-950 rounded-xl text-xs outline-none text-black dark:text-white border dark:border-gray-800">
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-gray-400 uppercase mb-1">Parol</label>
+                    <input id="auth-pass" type="password" class="w-full p-3 bg-gray-100 dark:bg-gray-950 rounded-xl text-xs outline-none text-black dark:text-white border dark:border-gray-800">
+                </div>
+                <button id="auth-btn" onclick="submitAuth()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl text-xs font-bold shadow-lg transition-all">Kirish</button>
+                <p class="text-center text-xs text-gray-400 mt-4">
+                    <span id="toggle-text">Akkountingiz yo'qmi?</span>
+                    <button onclick="toggleAuthMode()" id="toggle-btn" class="text-indigo-500 font-bold ml-1 hover:underline">Ro'yxatdan o'tish</button>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-app" class="w-full h-full flex hidden">
+        <aside id="sidebar" class="w-full md:w-80 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col z-30 relative">
+            <div class="p-3 border-b border-gray-100 dark:border-gray-800 flex items-center gap-2">
+                <input id="global-search" type="text" placeholder="Qidirish..." oninput="doGlobalSearch()" class="w-full p-2.5 bg-gray-100 dark:bg-gray-950 rounded-xl text-xs outline-none border dark:border-gray-800">
+                <button id="admin-panel-btn" onclick="openAdminPanel()" class="p-2.5 bg-red-100 dark:bg-red-950 rounded-xl text-xs hidden shadow" title="Admin panel">👑</button>
+                <button onclick="openSettings()" class="p-2.5 bg-gray-100 dark:bg-gray-800 rounded-xl text-xs shadow" title="Sozlamalar">⚙️</button>
+                <button onclick="toggleDarkMode()" class="p-2.5 bg-gray-100 dark:bg-gray-800 rounded-xl text-xs shadow" title="Tun/Kun rejimi">🌓</button>
+            </div>
+            <div id="search-results" class="hidden absolute top-14 left-0 w-full bg-white dark:bg-gray-900 z-40 max-h-60 overflow-y-auto divide-y dark:divide-gray-800 shadow-xl border-b dark:border-gray-800"></div>
+            <div id="rooms-list" class="flex-1 overflow-y-auto"></div>
+            <button onclick="toggleCreateGroupModal()" class="absolute bottom-5 right-5 w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full flex items-center justify-center shadow-2xl text-xl transition-all">静态📝</button>
+        </aside>
+
+        <section id="chat-area" class="hidden md:flex flex-1 flex-col bg-slate-50 dark:bg-gray-950 relative">
+            <header class="p-3 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center shadow-sm">
+                <div class="flex items-center gap-2">
+                    <button onclick="goBackToSidebar()" class="md:hidden text-lg p-1 bg-gray-100 dark:bg-gray-800 rounded-xl">⬅️</button>
+                    <div>
+                        <h2 id="active-room-name" class="font-bold text-sm">Suhbatni tanlang</h2>
+                        <p id="room-online-count" class="text-[10px] text-green-500 font-medium hidden"></p>
+                    </div>
+                </div>
+                <div id="chat-actions" class="hidden flex gap-2">
+                    <button id="add-member-btn" onclick="toggleAddMemberInput()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-1.5 rounded-lg font-bold hidden transition-all">➕ Odam qo'shish</button>
+                    <button onclick="toggleMembersList()" id="members-toggle-btn" class="bg-gray-200 dark:bg-gray-800 text-xs px-3 py-1.5 rounded-lg font-bold">A'zolar</button>
+                </div>
+            </header>
+
+            <div id="join-group-panel" class="hidden absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-20 flex flex-col items-center justify-center p-4">
+                <div class="bg-white dark:bg-gray-900 p-6 rounded-3xl text-center shadow-2xl max-w-sm border dark:border-gray-800">
+                    <p class="text-sm font-bold mb-4">Siz ushbu guruh a'zosi emassiz. Qo'shiling!</p>
+                    <button onclick="joinActiveGroup()" class="bg-indigo-600 text-white font-bold text-xs px-6 py-3 rounded-xl w-full shadow-lg">Guruhga qo'shilish</button>
+                </div>
+            </div>
+
+            <main id="messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-100 dark:bg-gray-950"></main>
+
+            <div id="reply-preview-box" class="hidden bg-gray-50 dark:bg-gray-900 border-t dark:border-gray-800 p-2 px-4 flex justify-between items-center text-xs">
+                <div class="border-l-2 border-indigo-500 pl-2">
+                    <p class="text-indigo-400 font-bold" id="reply-user"></p>
+                    <p class="text-gray-400 line-clamp-1" id="reply-text"></p>
+                </div>
+                <button onclick="cancelReply()" class="text-gray-400 font-bold text-sm p-1 hover:text-red-500">✕</button>
+            </div>
+
+            <div id="typing-indicator" class="px-4 py-1 text-[11px] text-indigo-500 italic hidden"></div>
+
+            <footer id="input-footer" class="hidden p-3 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
+                <div class="flex gap-2 max-w-4xl mx-auto items-center">
+                    <label class="cursor-pointer p-2.5 bg-gray-100 dark:bg-gray-800 rounded-xl text-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">
+                        📷 <input type="file" id="image-file" accept="image/*" class="hidden" onchange="uploadAndSendFile()">
+                    </label>
+                    <input id="msg-input" type="text" placeholder="Xabar yozing..." oninput="sendTypingStatus()" onkeypress="if(event.key === 'Enter') sendMessage()" class="flex-1 p-2.5 bg-gray-100 dark:bg-gray-950 rounded-xl outline-none text-sm border dark:border-gray-800 text-black dark:text-white">
+                    <button id="voice-btn" onclick="toggleVoiceRecord()" class="p-2.5 bg-gray-100 dark:bg-gray-800 rounded-xl text-sm">🎙️</button>
+                    <button onclick="sendMessage()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs transition-all shadow">Yuborish</button>
+                </div>
+            </footer>
+        </section>
+
+        <aside id="members-sidebar" class="hidden w-64 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 overflow-y-auto">
+            <h3 class="font-black text-xs text-gray-400 uppercase mb-2">A'zolar</h3>
+            <div id="group-members-list" class="divide-y dark:divide-gray-800"></div>
+        </aside>
+    </div>
+
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-900 rounded-3xl p-6 w-full max-w-md border dark:border-gray-800 shadow-2xl">
+            <div class="flex justify-between items-center mb-4"><h3 class="text-md font-black">⚙️ Sozlamalar</h3><button class="text-lg font-bold" onclick="closeSettings()">✕</button></div>
+            <div class="space-y-3 text-xs">
+                <p class="p-3 bg-gray-50 dark:bg-gray-950 rounded-xl border dark:border-gray-800"><strong>Foydalanuvchi:</strong> <span id="prof-user" class="text-indigo-500 font-bold"></span></p>
+                <p class="p-3 bg-gray-50 dark:bg-gray-950 rounded-xl border dark:border-gray-800"><strong>Telefon:</strong> <span id="prof-phone" class="text-emerald-500 font-bold"></span></p>
+                <button onclick="logout()" class="w-full bg-red-600 hover:bg-red-700 text-white p-3 rounded-xl font-bold transition-all shadow-lg mt-2">Chiqish (Logout)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="add-member-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl w-full max-w-sm border dark:border-gray-800 shadow-2xl">
+            <h3 class="text-sm font-bold mb-3">Guruhga odam qo'shish</h3>
+            <input id="add-member-username" type="text" placeholder="Username (masalan: ali)..." class="w-full p-2.5 bg-gray-100 dark:bg-gray-950 rounded-xl text-xs mb-3 text-black dark:text-white border dark:border-gray-800">
+            <div class="flex justify-end gap-2 text-xs">
+                <button onclick="toggleAddMemberInput()" class="px-3 py-2 bg-gray-200 dark:bg-gray-800 rounded-lg">Yopish</button>
+                <button onclick="executeAddMember()" class="px-3 py-2 bg-indigo-600 text-white rounded-lg">Qo'shish</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-900 rounded-3xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto border dark:border-gray-800 shadow-2xl">
+            <div class="flex justify-between items-center mb-4"><h3 class="text-md font-black text-red-500">👑 Admin Boshqaruv Paneli (Barcha odamlar)</h3><button onclick="closeAdminPanel()" class="text-sm font-bold bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-xl">Yopish</button></div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs divide-y dark:divide-gray-800">
+                    <thead><tr class="text-gray-400"><th class="p-2">ID</th><th class="p-2">Username</th><th class="p-2">Telefon</th><th class="p-2">Holat</th><th class="p-2">Rol</th></tr></thead>
+                    <tbody id="admin-users-table" class="divide-y dark:divide-gray-800"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="group-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-900 p-5 rounded-2xl w-full max-w-sm border dark:border-gray-800 shadow-2xl">
+            <h3 class="text-md font-bold mb-3">Yangi guruh</h3>
+            <input id="new-group-name" type="text" placeholder="Guruh nomi..." class="w-full p-2.5 bg-gray-100 dark:bg-gray-950 rounded-xl text-xs mb-3 text-black dark:text-white border dark:border-gray-800">
+            <div class="flex justify-end gap-2 text-xs">
+                <button onclick="toggleCreateGroupModal()" class="px-3 py-2 bg-gray-200 dark:bg-gray-800 rounded-lg">Yopish</button>
+                <button onclick="createNewGroup()" class="px-3 py-2 bg-indigo-600 text-white rounded-lg">Yaratish</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null, activeRoomId = null, typingTimeout = null, isLoginMode = true;
+        let token = localStorage.getItem('token'), myUsername = localStorage.getItem('username');
+        let mediaRecorder = null, audioChunks = [], isRecording = false;
+        let replyTargetUser = null, replyTargetText = null;
+
+        function checkAuth() {
+            if (!token || token === "undefined" || token === "null") {
+                document.getElementById('auth-screen').classList.remove('hidden');
+                document.getElementById('main-app').classList.add('hidden');
+            } else {
+                document.getElementById('auth-screen').classList.add('hidden');
+                document.getElementById('main-app').classList.remove('hidden');
+                fetchProfile(); loadMyChats();
+            }
+        }
+
+        async function fetchProfile() {
+            const data = await fetch(`/api/profile?token=${token}`).then(r => r.json());
+            if (data.is_admin) document.getElementById('admin-panel-btn').classList.remove('hidden');
+        }
+
+        function toggleAuthMode() { 
+            isLoginMode = !isLoginMode; 
+            document.getElementById('auth-title').innerText = isLoginMode ? "Tizimga kirish" : "Ro'yxatdan o'tish"; 
+            document.getElementById('phone-box').classList.toggle('hidden', isLoginMode); 
+            document.getElementById('auth-btn').innerText = isLoginMode ? "Kirish" : "Ro'yxatdan o'tish";
+            document.getElementById('toggle-text').innerText = isLoginMode ? "Akkountingiz yo'qmi?" : "Akkountingiz bormi?";
+            document.getElementById('toggle-btn').innerText = isLoginMode ? "Ro'yxatdan o'tish" : "Kirish";
+        }
+
+        async function submitAuth() {
+            const userVal = document.getElementById('auth-user').value.trim();
+            const password = document.getElementById('auth-pass').value.trim();
+            const phone = document.getElementById('auth-phone').value.trim();
+            const url = isLoginMode ? '/api/login' : '/api/register';
+            const bodyData = isLoginMode ? { phone_or_user: userVal, password } : { username: userVal, password, phone };
+
+            if(!userVal || !password || (!isLoginMode && !phone)) { alert("Hamma maydonlarni to'ldiring!"); return; }
+
+            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyData) });
+            const data = await res.json();
+            if(res.ok) {
+                if(isLoginMode) {
+                    localStorage.setItem('token', data.token); localStorage.setItem('username', data.username);
+                    token = data.token; myUsername = data.username; checkAuth();
+                } else { alert("Ro'yxatdan o'tdingiz! Endi tizimga kiring."); toggleAuthMode(); }
+            } else { alert(data.detail || "Xatolik yuz berdi"); }
+        }
+
+        async function loadMyChats() {
+            const res = await fetch(`/api/rooms?token=${token}`);
+            const chats = await res.json();
+            const container = document.getElementById('rooms-list'); container.innerHTML = '';
+            chats.forEach(c => {
+                const div = document.createElement('div');
+                div.className = `p-3.5 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 border-b dark:border-gray-800 text-xs ${activeRoomId == c.id ? 'bg-indigo-50 dark:bg-gray-800' : ''}`;
+                div.onclick = () => selectChat(c.id, c.name, c.is_group);
+                div.innerHTML = `<div><span class="mr-2">${c.is_group ? '👥' : '👤'}</span> <b>${c.name}</b></div>`;
+                container.appendChild(div);
+            });
+        }
+
+        async function selectChat(roomId, chatName, isGroup) {
+            activeRoomId = roomId; cancelReply();
+            document.getElementById('active-room-name').innerText = chatName;
+            
+            // Mobil dizayn uchun boshqaruv
+            document.getElementById('sidebar').classList.add('hidden', 'md:flex');
+            document.getElementById('chat-area').classList.replace('hidden', 'flex');
+
+            if(isGroup) document.getElementById('add-member-btn').classList.remove('hidden');
+            else document.getElementById('add-member-btn').classList.add('hidden');
+
+            const checkRes = await fetch(`/api/rooms/${roomId}/check?token=${token}`).then(r => r.json());
+            if (checkRes.is_group && !checkRes.is_member) {
+                document.getElementById('join-group-panel').classList.remove('hidden');
+                document.getElementById('input-footer').classList.add('hidden');
+                document.getElementById('chat-actions').classList.add('hidden');
+                document.getElementById('messages').innerHTML = '';
+                if(ws) ws.close(); return;
+            } else {
+                document.getElementById('join-group-panel').classList.add('hidden');
+                document.getElementById('input-footer').classList.remove('hidden');
+                document.getElementById('chat-actions').classList.remove('hidden');
+            }
+
+            if(ws) ws.close();
+            const proto = window.location.protocol === "https:" ? "wss" : "ws";
+            ws = new WebSocket(`${proto}://${window.location.host}/ws/${roomId}/${token}`);
+            const msgBox = document.getElementById('messages'); msgBox.innerHTML = '';
+
+            ws.onmessage = function(e) {
+                const data = JSON.parse(e.data);
+                if(data.type === "chat") {
+                    const isMe = data.sender === myUsername;
+                    const wrapper = document.createElement('div');
+                    wrapper.className = `flex w-full ${isMe ? 'justify-end' : 'justify-start'} msg-box relative group`;
+                    
+                    let content = `<p class="break-all text-xs">${data.message}</p>`;
+                    if(data.file_url) {
+                        if(data.file_type === 'image') content = `<img src="${data.file_url}" class="rounded-xl max-w-xs max-h-48 object-cover cursor-pointer" onclick="window.open('${data.file_url}')">`;
+                        if(data.file_type === 'voice') content = `<audio src="${data.file_url}" controls class="w-52 h-8 rounded-lg"></audio>`;
+                    }
+
+                    let replyHTML = '';
+                    if (data.reply_to_user) {
+                        replyHTML = `<div class="bg-black/10 dark:bg-white/5 border-l-2 border-indigo-400 p-1 px-2 rounded mb-1 text-[10px]">
+                            <b class="text-indigo-400">@${data.reply_to_user}</b>: ${data.reply_to_text}
+                        </div>`;
+                    }
+
+                    wrapper.innerHTML = `
+                        <div class="relative rounded-2xl px-3 py-1.5 text-xs shadow-md ${isMe ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100'}" style="max-w: 80%">
+                            <div class="react-popover hidden absolute -top-8 left-0 bg-white dark:bg-gray-800 shadow-xl border dark:border-gray-700 rounded-full px-2 py-0.5 gap-1.5 z-30 group-hover:flex">
+                                <button onclick="setReply('${data.sender}', '${data.message.replace(/'/g, "\\'")}')" class="text-[10px] font-bold text-indigo-400 px-1">↩️ Reply</button>
+                            </div>
+                            <div class="text-[10px] font-bold text-indigo-400">@${data.sender}</div>
+                            ${replyHTML}
+                            <div class="mt-1 flex items-end justify-between gap-3">
+                                ${content}
+                                <span class="text-[9px] opacity-60">${data.time}</span>
+                            </div>
+                        </div>`;
+                    msgBox.appendChild(wrapper);
+                    msgBox.scrollTop = msgBox.scrollHeight;
+                }
+                if(data.type === "typing" && data.sender !== myUsername) {
+                    const ind = document.getElementById('typing-indicator'); ind.innerText = `@${data.sender} yozmoqda...`; ind.classList.remove('hidden');
+                    clearTimeout(typingTimeout); typingTimeout = setTimeout(() => ind.classList.add('hidden'), 2000);
+                }
+            };
+            loadRoomMembers(roomId);
+        }
+
+        function goBackToSidebar() {
+            document.getElementById('sidebar').classList.replace('hidden', 'flex');
+            document.getElementById('chat-area').classList.replace('flex', 'hidden');
+        }
+
+        function setReply(username, text) {
+            replyTargetUser = username; replyTargetText = text;
+            document.getElementById('reply-user').innerText = `@${username}`;
+            document.getElementById('reply-text').innerText = text;
+            document.getElementById('reply-preview-box').classList.remove('hidden');
+        }
+
+        function cancelReply() {
+            replyTargetUser = null; replyTargetText = null;
+            document.getElementById('reply-preview-box').classList.add('hidden');
+        }
+
+        function sendMessage() {
+            const inp = document.getElementById('msg-input');
+            if(inp.value.trim() && ws) {
+                ws.send(JSON.stringify({
+                    type: "chat", message: inp.value.trim(),
+                    reply_to_user: replyTargetUser, reply_to_text: replyTargetText
+                }));
+                inp.value = ''; cancelReply();
+            }
+        }
+
+        function toggleAddMemberInput() { document.getElementById('add-member-modal').classList.toggle('hidden'); }
+        async function executeAddMember() {
+            const username = document.getElementById('add-member-username').value;
+            if(!username.trim()) return;
+            const fd = new FormData(); fd.append('target_username', username);
+            const res = await fetch(`/api/rooms/${activeRoomId}/add-member?token=${token}`, { method: 'POST', body: fd });
+            if (res.ok) { alert("A'zo muvaffaqiyatli qo'shildi!"); toggleAddMemberInput(); loadRoomMembers(activeRoomId); } else { alert("Foydalanuvchi topilmadi yoki u allaqachon guruhda bor!"); }
+        }
+
+        async function openAdminPanel() {
+            document.getElementById('admin-modal').classList.remove('hidden');
+            const res = await fetch(`/api/admin/users?token=${token}`).then(r => r.json());
+            const tbody = document.getElementById('admin-users-table'); tbody.innerHTML = '';
+            res.forEach(u => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50";
+                tr.innerHTML = `<td class="p-2.5">${u.id}</td><td class="p-2.5 font-bold text-indigo-400">@${u.username}</td><td class="p-2.5">${u.phone}</td><td class="p-2.5">${u.is_online?'<span class="text-green-500">🟢 online</span>':'<span class="text-gray-400">⚫ offline</span>'}</td><td class="p-2.5">${u.is_admin?'<span class="bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-bold">👑 Admin</span>':'Oddiy'}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+        function closeAdminPanel() { document.getElementById('admin-modal').classList.add('hidden'); }
+
+        async function joinActiveGroup() {
+            const res = await fetch(`/api/rooms/${activeRoomId}/join?token=${token}`, { method: 'POST' });
+            if(res.ok) { loadMyChats(); selectChat(activeRoomId, document.getElementById('active-room-name').innerText, true); }
+        }
+
+        async function uploadAndSendFile() {
+            const fileInput = document.getElementById('image-file'); if(fileInput.files.length === 0) return;
+            const fd = new FormData(); fd.append('file', fileInput.files[0]);
+            const res = await fetch(`/api/upload-file?token=${token}`, { method: 'POST', body: fd }).then(r=>r.json());
+            if(ws) ws.send(JSON.stringify({ type: "chat", message: "📷 Rasm yuklandi", file_url: res.file_url, file_type: 'image' }));
+        }
+
+        async function toggleVoiceRecord() {
+            const btn = document.getElementById('voice-btn');
+            if(!isRecording) {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream); audioChunks = [];
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = async () => {
+                    const fd = new FormData(); fd.append('file', new Blob(audioChunks, { type: 'audio/webm' }), 'voice.webm');
+                    const res = await fetch(`/api/upload-file?token=${token}`, { method: 'POST', body: fd }).then(r=>r.json());
+                    if(ws) ws.send(JSON.stringify({ type: "chat", message: "🎙️ Ovozli xabar", file_url: res.file_url, file_type: 'voice' }));
+                };
+                mediaRecorder.start(); isRecording = true; btn.innerText = "🛑"; btn.classList.add('bg-red-500', 'text-white');
+            } else { mediaRecorder.stop(); isRecording = false; btn.innerText = "🎙️"; btn.classList.remove('bg-red-500', 'text-white'); }
+        }
+
+        async function doGlobalSearch() {
+            const q = document.getElementById('global-search').value; const panel = document.getElementById('search-results');
+            if(!q.trim()) { panel.classList.add('hidden'); return; }
+            const data = await fetch(`/api/search?q=${q}&token=${token}`).then(r=>r.json());
+            panel.innerHTML = ''; panel.classList.remove('hidden');
+            data.rooms.forEach(r => {
+                const d = document.createElement('div'); d.className = "p-2.5 text-xs font-bold cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800";
+                d.onclick = () => { selectChat(r.id, r.name, true); panel.classList.add('hidden'); };
+                d.innerHTML = `👥 ${r.name}`; panel.appendChild(d);
+            });
+            data.users.forEach(u => {
+                const d = document.createElement('div'); d.className = "p-2.5 text-xs font-bold cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800";
+                d.onclick = async () => {
+                    panel.classList.add('hidden');
+                    const r = await fetch(`/api/rooms/open-direct/${u.id}?token=${token}`, { method: 'POST' }).then(res=>res.json());
+                    loadMyChats(); selectChat(r.room_id, u.username, false);
+                };
+                d.innerHTML = `👤 @${u.username}`; panel.appendChild(d);
+            });
+        }
+
+        async function loadRoomMembers(roomId) {
+            const members = await fetch(`/api/rooms/${roomId}/members?token=${token}`).then(r=>r.json());
+            document.getElementById('members-toggle-btn').innerText = `A'zolar (${members.length})`;
+            const onlineCount = members.filter(m => m.is_online).length;
+            const ind = document.getElementById('room-online-count');
+            ind.innerText = `${members.length} a'zodan ${onlineCount} tasi online`; ind.classList.remove('hidden');
+            const container = document.getElementById('group-members-list'); container.innerHTML = '';
+            members.forEach(m => {
+                const d = document.createElement('div'); d.className = "py-1.5 text-xs border-b dark:border-gray-800 flex justify-between";
+                d.innerHTML = `<b>@${m.username}</b> <span class="${m.is_online?'text-green-500':'text-gray-400'}">${m.is_online?'online':'offline'}</span>`;
+                container.appendChild(d);
+            });
+        }
+
+        function sendTypingStatus() { if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "typing" })); }
+        function toggleCreateGroupModal() { document.getElementById('group-modal').classList.toggle('hidden'); }
+        async function createNewGroup() {
+            const name = document.getElementById('new-group-name').value; if(!name.trim()) return;
+            const fd = new FormData(); fd.append('name', name);
+            await fetch(`/api/rooms/create-group?token=${token}`, { method: 'POST', body: fd });
+            toggleCreateGroupModal(); loadMyChats();
+        }
+        function toggleMembersList() { document.getElementById('members-sidebar').classList.toggle('hidden'); }
+        function toggleDarkMode() { const isDark = document.documentElement.classList.toggle('dark'); localStorage.setItem('dark-mode', isDark); }
+        
+        function openSettings() { 
+            document.getElementById('settings-modal').classList.remove('hidden'); 
+            fetch(`/api/profile?token=${token}`).then(r=>r.json()).then(data=>{ 
+                document.getElementById('prof-user').innerText = '@' + data.username; 
+                document.getElementById('prof-phone').innerText = data.phone; 
+            }); 
+        }
+        function closeSettings() { document.getElementById('settings-modal').classList.add('hidden'); }
+        
+        function logout() { 
+            localStorage.clear(); 
+            location.reload(); 
+        }
+        
+        window.onload = checkAuth;
+    </script>
+</body>
+</html>
