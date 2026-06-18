@@ -107,3 +107,14 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int, token: str, db:
             await manager.broadcast(f"{user.username}: {data}", room_id)
     except WebSocketDisconnect:
         manager.disconnect(websocket, room_id)
+
+
+from fastapi.staticfiles import StaticFiles
+
+# Bu qatorlar "index.html" va boshqa fayllarni saytda ko'rsatadi
+app.mount("/static", StaticFiles(directory="."), name="static")
+
+@app.get("/")
+def serve_index():
+    from fastapi.responses import FileResponse
+    return FileResponse("index.html")
