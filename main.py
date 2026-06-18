@@ -1,7 +1,6 @@
 import os
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
@@ -9,29 +8,18 @@ from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
-# Pydantic modellari
-class RegisterSchema(BaseModel):
-    username: str
-    password: str
-    phone: str
-
-class LoginSchema(BaseModel):
-    phone_or_user: str
-    password: str
-
-# App va DB sozlamalari
 app = FastAPI()
+
+# CORS ruxsatlari
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-DATABASE_URL = "sqlite:///./chat.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+
+# Baza sozlamalari
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./chat.db")
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-def get_db():
-    db = SessionLocal()
-    try: yield db
-    finally: db.close()
-
+# Foydalanuvchi modeli
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -42,38 +30,25 @@ class User(Base):
 Base.metadata.create_all(bind=engine)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# Routes
+def get_db():
+    db = SessionLocal()
+    try: yield db
+    finally: db.close()
+
+class RegisterSchema(BaseModel):
+    username: str
+    password: str
+    phone: str
+
 @app.post("/api/register")
 def register(data: RegisterSchema, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == data.username.lower()).first():
         raise HTTPException(400, "Username band")
     user = User(username=data.username.lower(), password_hash=pwd_context.hash(data.password), phone=data.phone)
-    db.add(user); db.commit()
+    db.add(user)
+    db.commit()
     return {"status": "ok"}
 
-@app.post("/api/login")
-def login(data: LoginSchema, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == data.phone_or_user.lower()).first()
-    if not user or not pwd_context.verify(data.password, user.password_hash):
-        raise HTTPException(400, "Login yoki parol xato")
-    return {"token": user.username}
-
-@app.get("/api/profile")
-def profile(token: str, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == token).first()
-    if not user: raise HTTPException(404, "Topilmadi")
-    return {"username": user.username, "phone": user.phone}
-
-@app.websocket("/ws/{token}")
-async def websocket_endpoint(websocket: WebSocket, token: str):
-    await websocket.accept()
-    try:
-        while True:
-            data = await websocket.receive_text()
-            await websocket.send_text(f"Server: {data}")
-    except WebSocketDisconnect:
-        pass
-
-@app.get("/{rest_of_path:path}")
-def serve_spa(rest_of_path: str):
+@app.get("/")
+def serve_index():
     return FileResponse("index.html")
