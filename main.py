@@ -13,11 +13,14 @@ app = FastAPI()
 # CORS ruxsatlari
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# Baza sozlamalari
+# DATABASE_URL ni aniqroq qilib olish
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./chat.db")
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {})
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+
+# Agar URL postgres bo'lsa, connect_args ni bo'sh qoldiramiz, aks holda sqlite uchun sozlamani qo'shamiz
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    engine = create_engine(DATABASE_URL)
 
 # Foydalanuvchi modeli
 class User(Base):
