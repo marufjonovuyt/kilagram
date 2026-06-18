@@ -35,6 +35,14 @@ Base.metadata.create_all(bind=engine)
 
 # 4. FastAPI ilovasi
 app = FastAPI()
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # Bu hamma saytdan so'rovni qabul qiladi
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Bosh sahifa (404 chiqmasligi uchun)
 @app.get("/")
