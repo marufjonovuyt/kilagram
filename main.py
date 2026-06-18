@@ -1,23 +1,20 @@
 import os
-import uuid
-from datetime import datetime
-from typing import List, Dict
-from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, Text
+from fastapi import FastAPI, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from sqlalchemy import create_engine, Column, Integer, String, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from passlib.context import CryptContext
+from pydantic import BaseModel
+from typing import List, Dict
 
-# 1. Sozlamalar
+# Parol shifrlash uchun
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-# Render uchun DATABASE_URL, bo'lmasa SQLite
+
+# 1. Baza URL (Render-dan keladi, bo'lmasa SQLite)
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./chat.db")
 
-# 2. Baza ulanishi
-if DATABASE_URL.startswith("sqlite"):
+# 2. Engine sozlamasi
+if "sqlite" in DATABASE_URL:
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 else:
     engine = create_engine(DATABASE_URL)
@@ -25,7 +22,7 @@ else:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# 3. Model klasslari
+# 3. Foydalanuvchi modeli
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -36,20 +33,21 @@ class User(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# 4. FastAPI Ilova
+# 4. FastAPI ilovasi
 app = FastAPI()
 
-# Uploads papkasini tekshirish
-for folder in ["uploads", "uploads/images", "uploads/voice"]:
-    if not os.path.exists(folder): os.makedirs(folder)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+# Bosh sahifa (404 chiqmasligi uchun)
+@app.get("/")
+def read_root():
+    return {"message": "Server ishlamoqda!"}
 
+# Bazaga ulanish
 def get_db():
     db = SessionLocal()
     try: yield db
     finally: db.close()
 
-# 5. API Endpointlar
+# Ro'yxatdan o'tish
 class RegisterSchema(BaseModel):
     username: str
     password: str
@@ -57,22 +55,19 @@ class RegisterSchema(BaseModel):
 
 @app.post("/api/register")
 def register(data: RegisterSchema, db: Session = Depends(get_db)):
-    username = data.username.strip().lower()
-    if db.query(User).filter(User.username == username).first(): 
+    if db.query(User).filter(User.username == data.username.strip().lower()).first():
         raise HTTPException(status_code=400, detail="Username band!")
     
-    is_first = db.query(User).count() == 0
     new_user = User(
-        username=username, 
-        password_hash=pwd_context.hash(data.password), 
-        phone=data.phone.strip(), 
-        is_admin=is_first
+        username=data.username.strip().lower(),
+        password_hash=pwd_context.hash(data.password),
+        phone=data.phone.strip()
     )
     db.add(new_user)
     db.commit()
     return {"status": "ok"}
 
-# 6. WebSocket Manager
+# 5. WebSocket (Chat)
 class ConnectionManager:
     def __init__(self): self.active_connections: Dict[int, List[WebSocket]] = {}
     
@@ -84,23 +79,23 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket, room_id: int):
         self.active_connections[room_id].remove(websocket)
         
-    async def broadcast(self, message: dict, room_id: int):
-        for connection in self.active_connections.get(room_id, []): 
-            await connection.send_json(message)
+    async def broadcast(self, message: str, room_id: int):
+        for connection in self.active_connections.get(room_id, []):
+            await connection.send_text(message)
 
 manager = ConnectionManager()
 
 @app.websocket("/ws/{room_id}/{token}")
 async def websocket_endpoint(websocket: WebSocket, room_id: int, token: str, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == token).first()
-    if not user: 
+    if not user:
         await websocket.close()
         return
-        
+    
     await manager.connect(websocket, room_id)
     try:
         while True:
-            data = await websocket.receive_json()
-            await manager.broadcast(data, room_id)
+            data = await websocket.receive_text()
+            await manager.broadcast(f"{user.username}: {data}", room_id)
     except WebSocketDisconnect:
         manager.disconnect(websocket, room_id)
