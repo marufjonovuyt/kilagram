@@ -184,24 +184,22 @@
             document.getElementById('toggle-btn').innerText = isLoginMode ? "Ro'yxatdan o'tish" : "Kirish";
         }
 
-        async function submitAuth() {
-            const userVal = document.getElementById('auth-user').value.trim();
-            const password = document.getElementById('auth-pass').value.trim();
-            const phone = document.getElementById('auth-phone').value.trim();
-            const url = isLoginMode ? '/api/login' : '/api/register';
-            const bodyData = isLoginMode ? { phone_or_user: userVal, password } : { username: userVal, password, phone };
-
-            if(!userVal || !password || (!isLoginMode && !phone)) { alert("Hamma maydonlarni to'ldiring!"); return; }
-
-            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bodyData) });
-            const data = await res.json();
-            if(res.ok) {
-                if(isLoginMode) {
-                    localStorage.setItem('token', data.token); localStorage.setItem('username', data.username);
-                    token = data.token; myUsername = data.username; checkAuth();
-                } else { alert("Ro'yxatdan o'tdingiz! Endi tizimga kiring."); toggleAuthMode(); }
-            } else { alert(data.detail || "Xatolik yuz berdi"); }
-        }
+// index.html ichidagi submitAuth funksiyasini shu qism bilan almashtir
+async function submitAuth() {
+    const userVal = document.getElementById('auth-user').value.trim();
+    const password = document.getElementById('auth-pass').value.trim();
+    const phone = document.getElementById('auth-phone').value.trim();
+    const url = isLoginMode ? '/api/login' : '/api/register';
+    
+    // FETCH QISMI MUHIM!
+    const res = await fetch(url, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(isLoginMode ? { phone_or_user: userVal, password } : { username: userVal, password, phone }) 
+    });
+    
+    // ... qolgan kod
+}
 
         async function loadMyChats() {
             const res = await fetch(`/api/rooms?token=${token}`);
